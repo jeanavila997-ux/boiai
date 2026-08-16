@@ -1,0 +1,31 @@
+# Ambiente e segredos
+.env
+.env.local
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Node / web
+node_modules/
+dist/
+*.local
+
+# Dados locais
+data/
+backups/
+*.sqlite3
+
+# SO / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Builds desktop
+release/

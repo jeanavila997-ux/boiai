@@ -1,0 +1,77 @@
+name: boiai
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: boiai-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-boiai_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-boiai}
+      MYSQL_USER: ${MYSQL_USER:-boiai}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-boiai_secret}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./db/seed_trait_dictionary.sql:/docker-entrypoint-initdb.d/02_seed_traits.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-boiai_root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: boiai-qdrant
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ollama: em desenvolvimento recomenda-se o Ollama nativo no host
+  # (GPU). Este serviço é opcional — descomente se quiser em container.
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: boiai-ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+
+  backend:
+    build: ./backend
+    container_name: boiai-backend
+    env_file: .env
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-boiai}:${MYSQL_PASSWORD:-boiai_secret}@mysql:3306/${MYSQL_DATABASE:-boiai}
+      QDRANT_URL: http://qdrant:6333
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./backend/app:/app/app:ro
+
+volumes:
+  mysql_data:
+  qdrant_data:
+  ollama_data:
